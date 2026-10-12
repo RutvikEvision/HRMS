@@ -1,6 +1,9 @@
 using HRMS.Data;
 using HRMS.Data.Entities;
+using HRMS.Repositories;
+using HRMS.Repositories.Interfaces;
 using HRMS.Services;
+using HRMS.Services.Interfaces;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -99,6 +102,9 @@ builder.Services.AddOpenApi();
 builder.Services.AddSwaggerGen();
 
 builder.Services.AddScoped<JwtTokenService>();
+
+builder.Services.AddScoped<IOrganizationRepository, OrganizationRepository>();
+builder.Services.AddScoped<IOrganizationService, OrganizationService>();
 
 var app = builder.Build();
 
