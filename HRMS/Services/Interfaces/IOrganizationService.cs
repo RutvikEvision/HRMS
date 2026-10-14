@@ -7,5 +7,6 @@ namespace HRMS.Services.Interfaces
         Task<Organization> CreateAsync(Guid id, string name, string address);
 
         Task<List<OrganizationUser>> GetMineOrganizationsAsync(Guid userId);
+
     }
 }
