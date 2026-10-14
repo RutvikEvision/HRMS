@@ -56,5 +56,33 @@ namespace HRMS.Controllers
                 Message = result.Message
             });
         }
+
+        [HttpDelete("{hrUserId:guid}")]
+        public async Task<IActionResult> Deactivate(Guid organizationId, Guid hrUserId)
+        {
+            var userIdValue = User.FindFirstValue("sub");
+
+            if (!Guid.TryParse(userIdValue, out var adminUserId))
+            {
+                return Unauthorized();
+            }
+
+            var result = await _hrUserService.DeactivateAsync(adminUserId, organizationId, hrUserId);
+
+            if (!result.IsAuthorized)
+            {
+                return Forbid();
+            }
+
+            if (!result.Found)
+            {
+                return NotFound(new
+                {
+                    message = "Active HR membership not found."
+                });
+            }
+
+            return NoContent();
+        }
     }
 }

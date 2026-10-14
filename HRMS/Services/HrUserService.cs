@@ -120,10 +120,37 @@ namespace HRMS.Services
             {
                 if(isNewUser)
                 {
-                    await _userManager.DeleteAsync(user);
+                    _ = await _userManager.DeleteAsync(user);
                 }
                 throw;
             }
+        }
+
+        public async Task<(bool IsAuthorized, bool Found)> DeactivateAsync(Guid adminUserId, Guid organizationId, Guid hrUserId)
+        {
+            var isAdmin = await _membershipRepository.IsActiveAdminAsync(
+                organizationId,
+                adminUserId);
+
+            if (!isAdmin)
+            {
+                return (false, false);
+            }
+
+            var membership = await _membershipRepository.GetActiveMembershipAsync(
+                organizationId,
+                hrUserId);
+
+            if (membership is null || !membership.IsActive || membership.Role != OrganizationRole.HR)
+            {
+                return (true, false);
+            }
+
+            membership.IsActive = false;
+
+            await _membershipRepository.UpdateAsync(membership);
+
+            return (true, true);
         }
     }
 }
