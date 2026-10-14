@@ -1,9 +1,11 @@
+using FluentValidation;
 using HRMS.Data;
 using HRMS.Data.Entities;
 using HRMS.Repositories;
 using HRMS.Repositories.Interfaces;
 using HRMS.Services;
 using HRMS.Services.Interfaces;
+using HRMS.Validators;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -105,6 +107,19 @@ builder.Services.AddScoped<JwtTokenService>();
 
 builder.Services.AddScoped<IOrganizationRepository, OrganizationRepository>();
 builder.Services.AddScoped<IOrganizationService, OrganizationService>();
+
+builder.Services.AddScoped<IOrganizationUserRepository, OrganizationUserRepository>();
+builder.Services.AddScoped<IHrUserService, HrUserService>();
+
+builder.Services.AddScoped<IUserService, UserService>();
+
+builder.Services.AddScoped<IEmployeeRepository, EmployeeRepository>();
+builder.Services.AddScoped<IEmployeeService, EmployeeService>();
+
+builder.Services.AddValidatorsFromAssemblyContaining<CreateEmployeeRequestValidator>();
+builder.Services.AddValidatorsFromAssemblyContaining<UpdateEmployeeRequestValidator>();
+
+builder.Services.AddSingleton<IDbConnectionFactory, NpgsqlConnectionFactory>();
 
 var app = builder.Build();
 
