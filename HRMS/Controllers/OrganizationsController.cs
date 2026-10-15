@@ -1,6 +1,5 @@
 ﻿using HRMS.Data;
 using HRMS.Data.Entities;
-using HRMS.Data.Enums;
 using HRMS.DTOs;
 using HRMS.Services;
 using HRMS.Services.Interfaces;

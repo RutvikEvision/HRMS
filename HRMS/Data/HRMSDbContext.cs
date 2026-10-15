@@ -1,9 +1,11 @@
 ﻿using HRMS.Data.Entities;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 
 namespace HRMS.Data
 {
-    public class HRMSDbContext : DbContext
+    public class HRMSDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid>, Guid>
     {
         public HRMSDbContext(DbContextOptions<HRMSDbContext> options) : base(options)
         {
@@ -14,6 +16,8 @@ namespace HRMS.Data
         public DbSet<OrganizationUser> OrganizationUsers => Set<OrganizationUser>();
 
         public DbSet<Employee> Employees => Set<Employee>();
+
+        public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
 
         protected override void OnModelCreating(ModelBuilder builder)
         {
@@ -53,10 +57,6 @@ namespace HRMS.Data
                     x.UserId
                 }).IsUnique();
 
-                entity.Property(x => x.Role)
-                    .IsRequired()
-                    .HasColumnType("int");
-
                 entity.Property(x => x.CreatedAtUtc)
                     .IsRequired();
 
@@ -66,6 +66,11 @@ namespace HRMS.Data
                 entity.HasOne(x => x.User)
                     .WithMany(x => x.OrganizationMemberships)
                     .HasForeignKey(x => x.UserId)
+                    .OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasOne(x => x.Role)
+                    .WithMany()
+                    .HasForeignKey(x => x.RoleId)
                     .OnDelete(DeleteBehavior.Restrict);
 
                 entity.HasOne(x => x.CreatedByUser)
@@ -107,11 +112,23 @@ namespace HRMS.Data
                     .WithMany(x => x.CreatedEmployees)
                     .HasForeignKey(x => x.CreatedByUserId)
                     .OnDelete(DeleteBehavior.Restrict);
+            });
 
-                entity.HasOne(x => x.User)
-                    .WithMany(x => x.EmployeeProfiles)
-                    .HasForeignKey(x => x.UserId)
-                    .OnDelete(DeleteBehavior.SetNull);
+            //Refresh Token
+            builder.Entity<RefreshToken>(entity =>
+            {
+                entity.HasKey(rt => rt.Id);
+
+                entity.Property(rt => rt.TokenHash)
+                    .IsRequired();
+
+                entity.HasIndex(rt => rt.TokenHash)
+                    .IsUnique();
+
+                entity.HasOne(rt => rt.User)
+                    .WithMany()
+                    .HasForeignKey(rt => rt.UserId)
+                    .OnDelete(DeleteBehavior.Cascade);
             });
         }
     }

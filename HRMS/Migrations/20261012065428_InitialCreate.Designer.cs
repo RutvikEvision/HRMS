@@ -208,11 +208,6 @@ namespace HRMS.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("HRMS.Data.Entities.ApplicationUser", "User")
-                        .WithMany("EmployeeProfiles")
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
                     b.Navigation("CreatedByUser");
 
                     b.Navigation("Organization");
@@ -249,8 +244,6 @@ namespace HRMS.Migrations
             modelBuilder.Entity("HRMS.Data.Entities.ApplicationUser", b =>
                 {
                     b.Navigation("CreatedEmployees");
-
-                    b.Navigation("EmployeeProfiles");
 
                     b.Navigation("OrganizationMemberships");
                 });

@@ -1,7 +1,7 @@
 ﻿using HRMS.Data;
 using HRMS.Data.Entities;
-using HRMS.Data.Enums;
 using HRMS.Repositories.Interfaces;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 
 namespace HRMS.Repositories
@@ -9,18 +9,21 @@ namespace HRMS.Repositories
     public class OrganizationUserRepository : IOrganizationUserRepository
     {
         private readonly HRMSDbContext _context;
+        private readonly RoleManager<IdentityRole<Guid>> _roleManager;
 
-        public OrganizationUserRepository(HRMSDbContext context)
+        public OrganizationUserRepository(HRMSDbContext context, RoleManager<IdentityRole<Guid>> roleManager)
         {
             _context = context;
+            _roleManager = roleManager;
         }
 
-        public Task<bool> IsActiveAdminAsync(Guid organizationId, Guid userId)
+        public async Task<bool> IsActiveAdminAsync(Guid organizationId, Guid userId, Guid adminRoleId)
         {
-            return _context.OrganizationUsers.AnyAsync(m =>
+
+            return await _context.OrganizationUsers.AnyAsync(m =>
                 m.OrganizationId == organizationId &&
                 m.UserId == userId &&
-                m.Role == OrganizationRole.Admin &&
+                m.RoleId == adminRoleId &&
                 m.IsActive
             );
         }
@@ -43,28 +46,14 @@ namespace HRMS.Repositories
                     m.IsActive);
         }
 
-        public Task<List<OrganizationUser>> GetActiveHrMembershipsCreatedByAdminAsync(Guid organizationId, Guid adminUserId)
-        {
-            return _context.OrganizationUsers
-                .AsNoTracking()
-                .Include(m => m.User)
-                .Where(m =>
-                    m.OrganizationId == organizationId &&
-                    m.Role == OrganizationRole.HR &&
-                    m.CreatedByUserId == adminUserId &&
-                    m.IsActive)
-                .OrderBy(m => m.CreatedAtUtc)
-                .ToListAsync();
-        }
-
-        public async Task<List<OrganizationUser>> GetActiveHrMembershipsByOrganizationAsync(Guid organizationId)
+        public async Task<List<OrganizationUser>> GetActiveHrMembershipsByOrganizationAsync(Guid organizationId, Guid hrRoleId)
         {
             return await _context.OrganizationUsers
                 .AsNoTracking()
                 .Include(m => m.User)
                 .Where(m =>
                     m.OrganizationId == organizationId &&
-                    m.Role == OrganizationRole.HR &&
+                    m.RoleId == hrRoleId &&
                     m.IsActive)
                 .OrderBy(m => m.CreatedAtUtc)
                 .ToListAsync();

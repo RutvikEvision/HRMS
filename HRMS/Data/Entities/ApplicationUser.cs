@@ -6,6 +6,5 @@ namespace HRMS.Data.Entities
     {
         public ICollection<OrganizationUser> OrganizationMemberships { get; set; } = new List<OrganizationUser>();
         public ICollection<Employee> CreatedEmployees { get; set; } = new List<Employee>();
-        public ICollection<Employee> EmployeeProfiles { get; set; } = new List<Employee>();
     }
 }

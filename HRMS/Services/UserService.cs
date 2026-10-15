@@ -1,7 +1,7 @@
-﻿using HRMS.Data.Enums;
-using HRMS.DTOs;
+﻿using HRMS.DTOs;
 using HRMS.Repositories.Interfaces;
 using HRMS.Services.Interfaces;
+using Microsoft.AspNetCore.Identity;
 
 namespace HRMS.Services
 {
@@ -9,11 +9,13 @@ namespace HRMS.Services
     {
         private readonly IOrganizationUserRepository _membershipRepository;
         private readonly IEmployeeRepository _employeeRepository;
+        private readonly RoleManager<IdentityRole<Guid>> _roleManager;
 
-        public UserService(IOrganizationUserRepository membershipRepository, IEmployeeRepository employeeRepository)
+        public UserService(IOrganizationUserRepository membershipRepository, IEmployeeRepository employeeRepository, RoleManager<IdentityRole<Guid>> roleManager)
         {
             _membershipRepository = membershipRepository;
             _employeeRepository = employeeRepository;
+            _roleManager = roleManager;
         }
 
         public async Task<(bool IsAuthorized, OrganizationUsersResponse? Response)> GetOrganizationUsersAsync(
@@ -31,13 +33,23 @@ namespace HRMS.Services
             var response = new OrganizationUsersResponse();
 
             //If Current User's Role Admin
-            if (membership.Role == OrganizationRole.Admin)
+            var adminRole = await _roleManager.FindByNameAsync("Admin");
+
+            if(adminRole is null)
             {
+                throw new InvalidOperationException("Admin role not found.");
+            }
+
+            if (membership.RoleId == adminRole.Id)
+            {
+                var hrRole = await _roleManager.FindByNameAsync("HR");
+
+                if (hrRole is null)
+                {
+                    throw new InvalidOperationException("HR role not found");
+                }
                 //Get HR users
-                var hrMemberships =
-                    await _membershipRepository
-                        .GetActiveHrMembershipsByOrganizationAsync(
-                            organizationId);
+                var hrMemberships = await _membershipRepository.GetActiveHrMembershipsByOrganizationAsync(organizationId, hrRole.Id);
 
                 //Also get Employee users
                 var employees =
@@ -71,7 +83,7 @@ namespace HRMS.Services
             }
 
             //If Current User's Role is HR
-            if (membership.Role == OrganizationRole.HR)
+            if (membership.RoleId == adminRole.Id)
             {
                 //Then only get Employees
                 var employees =

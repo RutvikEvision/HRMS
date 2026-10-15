@@ -1,9 +1,9 @@
 ﻿using HRMS.Data.Entities;
-using HRMS.Data.Enums;
 using HRMS.DTOs;
 using HRMS.Repositories;
 using HRMS.Repositories.Interfaces;
 using HRMS.Services.Interfaces;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 
 namespace HRMS.Services
@@ -12,18 +12,27 @@ namespace HRMS.Services
     {
         private readonly IEmployeeRepository _employeeRepository;
         private readonly IOrganizationUserRepository _membershipRepository;
+        private readonly RoleManager<IdentityRole<Guid>> _roleManager;
 
-        public EmployeeService(IEmployeeRepository employeeRepository, IOrganizationUserRepository membershipRepository)
+        public EmployeeService(IEmployeeRepository employeeRepository, IOrganizationUserRepository membershipRepository, RoleManager<IdentityRole<Guid>> roleManager)
         {
             _employeeRepository = employeeRepository;
             _membershipRepository = membershipRepository;
+            _roleManager = roleManager;
         }
 
         public async Task<(bool IsAuthorized, Employee? Employee)> CreateAsync(Guid hrUserId, Guid organizationId, CreateEmployeeRequest request)
         {
+            var hrRole = await _roleManager.FindByNameAsync("HR");
+
+            if(hrRole is null)
+            {
+                throw new InvalidOperationException("HR role not found.");
+            }
+
             var membership = await _membershipRepository.GetActiveMembershipAsync(organizationId, hrUserId);
 
-            if (membership is null || !membership.IsActive || membership.Role != OrganizationRole.HR)
+            if (membership is null || !membership.IsActive || membership.RoleId != hrRole.Id)
             {
                 return (false, null);
             }
@@ -33,7 +42,6 @@ namespace HRMS.Services
                 Id = Guid.NewGuid(),
                 OrganizationId = organizationId,
                 CreatedByUserId = hrUserId,
-                UserId = null,
                 FirstName = request.FirstName.Trim(),
                 LastName = request.LastName.Trim(),
                 Email = request.Email.Trim(),
@@ -56,11 +64,16 @@ namespace HRMS.Services
             Guid employeeId,
             UpdateEmployeeRequest request)
         {
+            var hrRole = await _roleManager.FindByNameAsync("HR");
+
+            if (hrRole is null)
+            {
+                throw new InvalidOperationException("HR role not found.");
+            }
+
             var membership = await _membershipRepository.GetActiveMembershipAsync(organizationId, hrUserId);
 
-            if (membership is null ||
-                !membership.IsActive ||
-                membership.Role != OrganizationRole.HR)
+            if (membership is null || !membership.IsActive || membership.RoleId != hrRole.Id)
             {
                 return (false, false);
             }
@@ -92,9 +105,16 @@ namespace HRMS.Services
 
         public async Task<(bool IsAuthorized, bool Found)> DeleteAsync(Guid organizationId, Guid hrUserId, Guid employeeId)
         {
+            var hrRole = await _roleManager.FindByNameAsync("HR");
+
+            if (hrRole is null)
+            {
+                throw new InvalidOperationException("HR role not found.");
+            }
+
             var membership = await _membershipRepository.GetActiveMembershipAsync(organizationId, hrUserId);
 
-            if (membership is null ||!membership.IsActive || membership.Role != OrganizationRole.HR)
+            if (membership is null ||!membership.IsActive || membership.RoleId != hrRole.Id)
             {
                 return (false, false);
             }
@@ -113,6 +133,20 @@ namespace HRMS.Services
 
         public async Task<(bool IsAuthorized, EmployeeDetailResponse? Details)> GetDetailsAsync(Guid currentUserId, Guid organizationId, Guid employeeId)
         {
+            var adminRole = await _roleManager.FindByNameAsync("Admin");
+
+            if (adminRole is null)
+            {
+                throw new InvalidOperationException("Admin role not found.");
+            }
+
+            var hrRole = await _roleManager.FindByNameAsync("HR");
+
+            if (hrRole is null)
+            {
+                throw new InvalidOperationException("HR role not found.");
+            }
+
             var membership = await _membershipRepository.GetActiveMembershipAsync(organizationId, currentUserId);
 
             if (membership is null || !membership.IsActive)
@@ -120,14 +154,14 @@ namespace HRMS.Services
                 return (false, null);
             }
 
-            if (membership.Role == OrganizationRole.Admin)
+            if (membership.RoleId == adminRole.Id)
             {
                 var adminDetails = await _employeeRepository.GetDetailsAsync(organizationId, employeeId);
 
                 return adminDetails is null ? (true, null) : (true, adminDetails);
             }
 
-            if (membership.Role == OrganizationRole.HR)
+            if (membership.RoleId == hrRole.Id)
             {
                 var employee = await _employeeRepository.GetEmployeeCreatedByHrAsync(organizationId, currentUserId, employeeId);
 

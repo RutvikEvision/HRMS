@@ -1,5 +1,4 @@
 ﻿using HRMS.Data.Entities;
-using HRMS.Data.Enums;
 using HRMS.Repositories.Interfaces;
 using HRMS.Services.Interfaces;
 using Microsoft.AspNetCore.Identity;
@@ -10,11 +9,13 @@ namespace HRMS.Services
     {
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly IOrganizationUserRepository _membershipRepository;
+        private readonly RoleManager<IdentityRole<Guid>> _roleManager;
 
-        public HrUserService(UserManager<ApplicationUser> userManager, IOrganizationUserRepository membershipRepository)
+        public HrUserService(UserManager<ApplicationUser> userManager, IOrganizationUserRepository membershipRepository, RoleManager<IdentityRole<Guid>> roleManager)
         {
             _userManager = userManager;
             _membershipRepository = membershipRepository;
+            _roleManager = roleManager;
         }
 
         public async Task<(bool Success, string Message, Guid? UserId)> CreateAsync(
@@ -23,11 +24,25 @@ namespace HRMS.Services
             string email, 
             string password)
         {
-            var isAdmin = await _membershipRepository.IsActiveAdminAsync(organizationId, adminUserId);
+            var adminRole = await _roleManager.FindByNameAsync("Admin");
+
+            if (adminRole is null)
+            {
+                throw new InvalidOperationException("Admin role not found.");
+            }
+
+            var isAdmin = await _membershipRepository.IsActiveAdminAsync(organizationId, adminUserId, adminRole.Id);
 
             if (!isAdmin)
             {
                 return (false, "You are not an active Admin of this organization.", null);
+            }
+
+            var hrRole = await _roleManager.FindByNameAsync("HR");
+
+            if (hrRole is null)
+            {
+                throw new InvalidOperationException("HR role not found.");
             }
 
             email = email.Trim();
@@ -57,7 +72,7 @@ namespace HRMS.Services
             }
             try
             {
-                //check in current organization user exists
+                //check that in current organization user already exists or what?
                 var membership = await _membershipRepository.GetMembershipAsync(organizationId, user!.Id);
 
                 // user exists
@@ -77,7 +92,7 @@ namespace HRMS.Services
                     }
 
                     // if membership already exists and in-active but the role is not HR
-                    if (membership.Role != OrganizationRole.HR)
+                    if (membership.RoleId != hrRole.Id)
                     {
                         if (isNewUser)
                         {
@@ -105,7 +120,7 @@ namespace HRMS.Services
                         Id = Guid.NewGuid(),
                         OrganizationId = organizationId,
                         UserId = user.Id,
-                        Role = OrganizationRole.HR,
+                        RoleId = Guid.Parse(hrRole.Id.ToString()),
                         CreatedByUserId = adminUserId,
                         CreatedAtUtc = DateTime.UtcNow,
                         IsActive = true
@@ -120,7 +135,7 @@ namespace HRMS.Services
             {
                 if(isNewUser)
                 {
-                    _ = await _userManager.DeleteAsync(user);
+                    _ = await _userManager.DeleteAsync(user!);
                 }
                 throw;
             }
@@ -128,9 +143,21 @@ namespace HRMS.Services
 
         public async Task<(bool IsAuthorized, bool Found)> DeactivateAsync(Guid adminUserId, Guid organizationId, Guid hrUserId)
         {
-            var isAdmin = await _membershipRepository.IsActiveAdminAsync(
-                organizationId,
-                adminUserId);
+            var hrRole = await _roleManager.FindByNameAsync("HR");
+
+            if (hrRole is null)
+            {
+                throw new InvalidOperationException("HR role not found.");
+            }
+
+            var adminRole = await _roleManager.FindByNameAsync("Admin");
+
+            if (adminRole is null)
+            {
+                throw new InvalidOperationException("Admin role not found.");
+            }
+
+            var isAdmin = await _membershipRepository.IsActiveAdminAsync(organizationId, adminUserId, adminRole.Id);
 
             if (!isAdmin)
             {
@@ -141,7 +168,7 @@ namespace HRMS.Services
                 organizationId,
                 hrUserId);
 
-            if (membership is null || !membership.IsActive || membership.Role != OrganizationRole.HR)
+            if (membership is null || !membership.IsActive || membership.RoleId != hrRole.Id)
             {
                 return (true, false);
             }
