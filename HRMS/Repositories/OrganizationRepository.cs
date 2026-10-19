@@ -14,21 +14,12 @@ namespace HRMS.Repositories
             _context = context;
         }
 
-        public async Task CreateAsync(Organization organization, OrganizationUser membership)
+        public async Task CreateWithAdminAsync(Organization organization, OrganizationUser membership)
         {
             _context.Organizations.Add(organization);
             _context.OrganizationUsers.Add(membership);
 
             await _context.SaveChangesAsync();
-        }
-
-        public async Task<List<OrganizationUser>> GetMembershipsByUserIdAsync(Guid userId)
-        {
-            return await _context.OrganizationUsers
-                .AsNoTracking()
-                .Include(m => m.Organization)
-                .Where(m => m.UserId == userId && m.IsActive)
-                .ToListAsync();
         }
     }
 }

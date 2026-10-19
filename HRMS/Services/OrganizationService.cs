@@ -1,4 +1,7 @@
-﻿using HRMS.Data.Entities;
+﻿using HRMS.Common;
+using HRMS.Data.Entities;
+using HRMS.DTOs.Auth;
+using HRMS.DTOs.OrganizationDTOs;
 using HRMS.Repositories.Interfaces;
 using HRMS.Services.Interfaces;
 using Microsoft.AspNetCore.Identity;
@@ -7,32 +10,39 @@ namespace HRMS.Services
 {
     public class OrganizationService : IOrganizationService
     {
-        private readonly IOrganizationRepository _repository;
+        private readonly UserManager<ApplicationUser> _userManager;
         private readonly RoleManager<IdentityRole<Guid>> _roleManager;
+        private readonly IOrganizationRepository _organizationRepository;
+        private readonly IMembershipRepository _membershipRepository;
+        private readonly IAuthService _authService;
 
-        public OrganizationService(IOrganizationRepository repository, RoleManager<IdentityRole<Guid>> roleManager)
+        public OrganizationService(
+            UserManager<ApplicationUser> userManager, 
+            RoleManager<IdentityRole<Guid>> roleManager, 
+            IOrganizationRepository organizationRepository,
+            IMembershipRepository membershipRepository,
+            IAuthService authService
+            )
         {
-            _repository = repository;
+            _userManager = userManager;
             _roleManager = roleManager;
+            _organizationRepository = organizationRepository;
+            _membershipRepository = membershipRepository;
+            _authService = authService;
         }
 
-        public async Task<Organization> CreateAsync(Guid userId, string name, string address)
+        public async Task<AuthResponse> CreateWithAdminAsync(Guid userId, CreateOrganizationRequest request)
         {
-            var adminRole = await _roleManager.FindByNameAsync("Admin");
+            var user = await GetUserAsync(userId);
 
-            if (adminRole is null)
-            {
-                throw new InvalidOperationException("Admin role not found");
-            }
-
-            var now = DateTime.UtcNow;
+            var adminRole = await _roleManager.FindByNameAsync("Admin")
+                ?? throw new AppException(500, "Admin role is not seeded.");
 
             var organization = new Organization
             {
                 Id = Guid.NewGuid(),
-                Name = name.Trim(),
-                Address = address.Trim(),
-                CreatedAtUtc = now
+                Name = request.Name.Trim(),
+                Address = request.Address.Trim()
             };
 
             var membership = new OrganizationUser
@@ -41,19 +51,48 @@ namespace HRMS.Services
                 OrganizationId = organization.Id,
                 UserId = userId,
                 RoleId = adminRole.Id,
-                CreatedByUserId = userId,
-                CreatedAtUtc = now,
-                IsActive = true
+                CreatedByUserId = userId
             };
 
-            await _repository.CreateAsync(organization, membership);
+            await _organizationRepository.CreateWithAdminAsync(organization, membership);
 
-            return organization;
+            return await _authService.IssueTokensAsync(user, organization.Id);
         }
 
-        public Task<List<OrganizationUser>> GetMineOrganizationsAsync(Guid userId)
+        public async Task<List<MineOrganizationResponse>> GetMineOrganizationsAsync(Guid userId)
         {
-            return _repository.GetMembershipsByUserIdAsync(userId);
+            var memberships = await _membershipRepository.GetActiveMembershipsAsync(userId);
+
+            return memberships
+                .Select(m => new MineOrganizationResponse{
+                    Id = m.OrganizationId, 
+                    Name = m.Organization.Name, 
+                    Role = m.Role.Name! 
+                })
+                .ToList();
         }
+
+        public async Task<AuthResponse> SelectAsync(Guid userId, Guid organizationId)
+        {
+            var user = await GetUserAsync(userId);
+
+            var memberships = await _membershipRepository.GetActiveMembershipsAsync(userId);
+
+            if (!memberships.Any(m => m.OrganizationId == organizationId))
+                throw new AppException(403, "You are not a member of this organization.");
+
+            return await _authService.IssueTokensAsync(user, organizationId);
+        }
+
+        private async Task<ApplicationUser> GetUserAsync(Guid userId)
+        {
+            var user = await _userManager.FindByIdAsync(userId.ToString());
+
+            if (user is null || !user.IsActive)
+                throw new AppException(401, "User not found or inactive.");
+
+            return user;
+        }
+
     }
 }
