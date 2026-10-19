@@ -1,6 +1,9 @@
 ﻿using HRMS.Data.Entities;
-using HRMS.DTOs;
+using HRMS.DTOs.Auth;
 using HRMS.Services;
+using HRMS.Services.Interfaces;
+using Microsoft.AspNetCore.Authorization;
+using System.Security.Claims;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 
@@ -10,60 +13,58 @@ namespace HRMS.Controllers
     [ApiController]
     public class AuthController : ControllerBase
     {
-        private readonly UserManager<ApplicationUser> _userManager;
-        private readonly JwtTokenService _jwtTokenService;
+        private readonly IAuthService _authService;
 
-        public AuthController(UserManager<ApplicationUser> userManager, JwtTokenService jwtTokenService)
+        public AuthController(IAuthService authService)
         {
-            _userManager = userManager;
-            _jwtTokenService = jwtTokenService;
+            _authService = authService;
         }
 
+        [AllowAnonymous]
         [HttpPost("register")]
-        public async Task<IActionResult> Register(RegisterRequest request)
+        public async Task<ActionResult<RegisterResponse>> Register(RegisterRequest request)
         {
-            var user = new ApplicationUser
-            {
-                UserName = request.Email,
-                Email = request.Email
-            };
+            var response = await _authService.RegisterAsync(request);
 
-            var result = await _userManager.CreateAsync(user, request.Password);
-
-            if (!result.Succeeded)
-            {
-                return BadRequest(new
-                {
-                    errors = result.Errors.Select(error => error.Description)
-                });
-            }
-
-            return StatusCode(StatusCodes.Status201Created, new
-            {
-                message = "Registration successful. Please log in."
-            });
+            return StatusCode(201, response);
         }
 
+        [AllowAnonymous]
         [HttpPost("login")]
-        public async Task<IActionResult> Login(LoginRequest request)
+        public async Task<ActionResult<AuthResponse>> Login(LoginRequest request)
         {
-            var user = await _userManager.FindByEmailAsync(request.Email);
+            var response = await _authService.LoginAsync(request);
+            return Ok(response);
+        }
 
-            if (user == null || !await _userManager.CheckPasswordAsync(user, request.Password))
-            {
-                return Unauthorized(new
-                {
-                    message = "Invalid email or password."
-                });
-            }
+        [AllowAnonymous]
+        [HttpPost("refresh")]
+        public async Task<ActionResult<AuthResponse>> Refresh(RefreshRequest request)
+        {
+            var response = await _authService.RefreshAsync(request);
 
-            var (token, expiresAtUtc) = _jwtTokenService.CreateToken(user);
+            return Ok(response);
+        }
 
+        [Authorize]
+        [HttpPost("logout")]
+        public async Task<IActionResult> Logout()
+        {
+            await _authService.LogoutAsync(Guid.Parse(User.FindFirstValue("sub")!));
+            return NoContent();
+        }
+
+        [Authorize]
+        [HttpGet("me")]
+        public IActionResult Me()
+        {
             return Ok(new
             {
-                accessToken = token,
-                tokenType = "Bearer",
-                expiresAtUtc
+                UserId = User.FindFirstValue("sub"),
+                Email = User.FindFirstValue("email"),
+                Name = User.FindFirstValue("name"),
+                OrganizationId = User.FindFirstValue("organization_id"),
+                Role = User.FindFirstValue("role")
             });
         }
     }

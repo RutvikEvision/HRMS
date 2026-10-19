@@ -1,9 +1,9 @@
-﻿namespace HRMS.DTOs
+﻿namespace HRMS.DTOs.Auth
 {
-    public class HrUserResponse
+    public class RegisterResponse
     {
         public Guid UserId { get; set; }
         public string Email { get; set; } = string.Empty;
-        public DateTime CreatedAtUtc { get; set; }
+
     }
 }

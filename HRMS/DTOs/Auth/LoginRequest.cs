@@ -1,14 +1,14 @@
 ﻿using System.ComponentModel.DataAnnotations;
 
-namespace HRMS.DTOs
+namespace HRMS.DTOs.Auth
 {
-    public class CreateHrUserRequest
+    public class LoginRequest
     {
-        [Required, EmailAddress]
+        [Required]
+        [EmailAddress]
         public string Email { get; set; } = string.Empty;
 
-        [Required, MinLength(8)]
+        [Required]
         public string Password { get; set; } = string.Empty;
-
     }
 }
